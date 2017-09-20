@@ -24,9 +24,12 @@ help: ##@other Show this help.
 
 build: ## build
 	npm run build
+
 serve: ## serve
 	npm start
+
 clean: ## clean build
 	rm -rf build/
-gh-page: make ## push gh-pages
+
+gh-page: build ## push gh-pages
 	ghp-import build/ --push
