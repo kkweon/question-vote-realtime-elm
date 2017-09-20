@@ -12,6 +12,7 @@ const wss = new WebSocket.Server({
 
 // [Server -> Client] { message: "init", questions: [Question] }
 // [Server -> Client] { message: "update question", question: Question }
+// [Server -> Client] { message: "add question", question: Question }
 
 // [Client -> Server] { message: "update question", id: String, vote: Int }
 // [Client -> Server] { message: "add question", question: String }
@@ -51,23 +52,23 @@ function addQuestionAndBroadcast(data) {
         id: uid()
     };
     questions.push(newQuestion);
-    broadcastQuestion(newQuestion);
+    broadcastQuestion(newQuestion, "add question");
 }
 
 function updateQuestionAndBroadcast(data) {
     questions.forEach(function(question) {
         if (question.id === data.id) {
             question.rating += data.vote;
-            broadcastQuestion(question);
+            broadcastQuestion(question, "update question");
         }
     });
 }
 
 // [Server -> Client] {message: "update question", question: {id : String, question: String, rating: Int}}
-function broadcastQuestion(question) {
+function broadcastQuestion(question, message) {
     if (arrayExist(questions)) {
         var questionMsg = {
-            message: "update question",
+            message: message, //"update question", "add question"
             question: question
         };
         questionMsg = JSON.stringify(questionMsg);

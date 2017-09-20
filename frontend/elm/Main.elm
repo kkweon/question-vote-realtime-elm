@@ -5,6 +5,10 @@ import Html.Attributes as Attr exposing (..)
 import Html.Events as Events exposing (..)
 import Uuid
 import Random.Pcg exposing (Seed, initialSeed, step)
+import WebSocket as WS
+import Json.Decode as JD
+import Json.Decode.Pipeline as JDP
+import Json.Encode as JE
 
 
 main : Program Never Model Msg
@@ -70,11 +74,106 @@ type Msg
     | SubmitQuestion
     | UpVote QuestionId
     | DownVote QuestionId
+    | WsMsg String
+
+
+type alias WebsocketMessage =
+    { message : String
+    , questions : List Question
+    , question : Question
+    }
+
+
+toVoteMessage : QuestionId -> Int -> String
+toVoteMessage questionId vote =
+    JE.object
+        [ ( "message", JE.string "update question" )
+        , ( "id", JE.string questionId )
+        , ( "vote", JE.int vote )
+        ]
+        |> JE.encode 0
+
+
+toAddQuestionMessage : Question -> String
+toAddQuestionMessage question =
+    JE.object
+        [ ( "message", JE.string "add question" )
+        , ( "question", JE.string question.question )
+        ]
+        |> JE.encode 0
+
+
+sendVoteToServer : QuestionId -> Int -> Cmd msg
+sendVoteToServer questionId vote =
+    WS.send webSocketUrl (toVoteMessage questionId vote)
+
+
+sendAddQuestionToServer : Question -> Cmd msg
+sendAddQuestionToServer question =
+    WS.send webSocketUrl (toAddQuestionMessage question)
+
+
+questionDecoder : JD.Decoder Question
+questionDecoder =
+    JDP.decode Question
+        |> JDP.required "id" JD.string
+        |> JDP.required "question" JD.string
+        |> JDP.required "rating" JD.int
+
+
+wsMsgDecoder : JD.Decoder WebsocketMessage
+wsMsgDecoder =
+    JDP.decode WebsocketMessage
+        |> JDP.required "message" JD.string
+        |> JDP.optional "questions" (JD.list questionDecoder) []
+        |> JDP.optional "question" questionDecoder (Question "" "" 0)
+
+
+interpretWebsocketMsg : Model -> String -> ( Model, Cmd Msg )
+interpretWebsocketMsg model message =
+    case JD.decodeString wsMsgDecoder message of
+        Ok wsMessage ->
+            case wsMessage.message of
+                "init" ->
+                    { model | questions = wsMessage.questions } ! [ Cmd.none ]
+
+                "update question" ->
+                    let
+                        newQuestion =
+                            wsMessage.question
+
+                        newQuestionList =
+                            model.questions
+                                |> List.map
+                                    (\q ->
+                                        if q.id == newQuestion.id then
+                                            newQuestion
+                                        else
+                                            q
+                                    )
+                    in
+                        { model | questions = newQuestionList } ! [ Cmd.none ]
+
+                "add question" ->
+                    let
+                        newQuestionList =
+                            wsMessage.question :: model.questions
+                    in
+                        { model | questions = newQuestionList } ! [ Cmd.none ]
+
+                _ ->
+                    ( model, Cmd.none )
+
+        Err err ->
+            ( model, Cmd.none )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        WsMsg message ->
+            interpretWebsocketMsg model message
+
         Index ->
             model ! [ Cmd.none ]
 
@@ -94,10 +193,9 @@ update msg model =
             in
                 { model
                     | query = ""
-                    , questions = newQuestionList
                     , seed = newSeed
                 }
-                    ! [ Cmd.none ]
+                    ! [ sendAddQuestionToServer newQuestion ]
 
         UpVote questionId ->
             case isAlreadyUpVoted model.user questionId of
@@ -110,9 +208,6 @@ update msg model =
 
                                 False ->
                                     1
-
-                        newQuestionList =
-                            changeQuestionRatingBy model.questions questionId score
 
                         newUpVoteList =
                             questionId :: model.user.upVoteList
@@ -127,12 +222,12 @@ update msg model =
                             , downVoteList = newDownVoteList
                             }
                     in
-                        { model | questions = newQuestionList, user = newUser } ! [ Cmd.none ]
+                        { model | user = newUser } ! [ sendVoteToServer questionId score ]
 
                 True ->
                     let
-                        newQuestionList =
-                            changeQuestionRatingBy model.questions questionId (-1)
+                        score =
+                            (-1)
 
                         newUpVoteList =
                             model.user.upVoteList
@@ -144,7 +239,7 @@ update msg model =
                         newUser =
                             { tempUser | upVoteList = newUpVoteList }
                     in
-                        { model | questions = newQuestionList, user = newUser } ! [ Cmd.none ]
+                        { model | user = newUser } ! [ sendVoteToServer questionId score ]
 
         DownVote questionId ->
             case isAlreadyDownVoted model.user questionId of
@@ -157,9 +252,6 @@ update msg model =
 
                                 False ->
                                     (-1)
-
-                        newQuestionList =
-                            changeQuestionRatingBy model.questions questionId score
 
                         newUpVoteList =
                             model.user.upVoteList
@@ -174,12 +266,12 @@ update msg model =
                             , downVoteList = newDownVoteList
                             }
                     in
-                        { model | questions = newQuestionList, user = newUser } ! [ Cmd.none ]
+                        { model | user = newUser } ! [ sendVoteToServer questionId score ]
 
                 True ->
                     let
-                        newQuestionList =
-                            changeQuestionRatingBy model.questions questionId 1
+                        score =
+                            1
 
                         newDownVoteList =
                             model.user.downVoteList
@@ -191,7 +283,7 @@ update msg model =
                         newUser =
                             { tempUser | downVoteList = newDownVoteList }
                     in
-                        { model | questions = newQuestionList, user = newUser } ! [ Cmd.none ]
+                        { model | user = newUser } ! [ sendVoteToServer questionId score ]
 
 
 isAlreadyUpVoted : User -> QuestionId -> Bool
@@ -366,6 +458,11 @@ viewMenu =
 -- Sub
 
 
+webSocketUrl : String
+webSocketUrl =
+    "ws://localhost:5000"
+
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    WS.listen webSocketUrl WsMsg

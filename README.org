@@ -1,0 +1,21 @@
+#+TITLE: Real-time Question Platform
+
+#+HTML: <div align="center"> <img src="./readme_assets/demo.gif" /> </div>
+
+- Question can be written anonymously online.
+- Can vote
+- Can be used in a small talk, seminar, conference, etc
+
+* Build
+- NPM(NodeJS)
+- ELM
+#+BEGIN_SRC bash
+npm install
+elm-package install
+#+END_SRC
+
+* Run
+
+#+BEGIN_SRC bash
+nf start
+#+END_SRC
