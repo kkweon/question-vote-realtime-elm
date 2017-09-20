@@ -22,7 +22,7 @@ HELP_FUN = \
 help: ##@other Show this help.
 	@perl -e '$(HELP_FUN)' $(MAKEFILE_LIST)
 
-make: ## build
+build: ## build
 	npm run build
 serve: ## serve
 	npm start
