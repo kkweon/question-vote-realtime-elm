@@ -181,21 +181,24 @@ update msg model =
             { model | query = query } ! [ Cmd.none ]
 
         SubmitQuestion ->
-            let
-                ( newUuid, newSeed ) =
-                    Random.Pcg.step Uuid.uuidGenerator model.seed
+            if String.trim model.query |> String.isEmpty then
+                model ! []
+            else
+                let
+                    ( newUuid, newSeed ) =
+                        Random.Pcg.step Uuid.uuidGenerator model.seed
 
-                newQuestion =
-                    { id = Uuid.toString newUuid, question = model.query, rating = 0 }
+                    newQuestion =
+                        { id = Uuid.toString newUuid, question = model.query, rating = 0 }
 
-                newQuestionList =
-                    newQuestion :: model.questions
-            in
-                { model
-                    | query = ""
-                    , seed = newSeed
-                }
-                    ! [ sendAddQuestionToServer newQuestion ]
+                    newQuestionList =
+                        newQuestion :: model.questions
+                in
+                    { model
+                        | query = ""
+                        , seed = newSeed
+                    }
+                        ! [ sendAddQuestionToServer newQuestion ]
 
         UpVote questionId ->
             case isAlreadyUpVoted model.user questionId of
