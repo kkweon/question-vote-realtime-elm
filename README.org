@@ -7,6 +7,9 @@
 - Can be used in a small talk, seminar, conference, etc
 
 * Build
+
+  #+ATTR_HTML: title="Greenkeeper badge"
+  [[https://greenkeeper.io/][file:https://badges.greenkeeper.io/kkweon/question-vote-realtime-elm.svg]]
 - NPM(NodeJS)
 - ELM
 #+BEGIN_SRC bash
